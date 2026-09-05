@@ -1,0 +1,48 @@
+global:
+  scrape_interval: 15s
+
+rule_files:
+  - /etc/prometheus/rules/*.yml
+
+scrape_configs:
+  - job_name: backend
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["backend:8000"]
+  - job_name: rag-worker
+    static_configs:
+      - targets: ["worker:9101"]
+  - job_name: rabbitmq
+    metrics_path: /metrics/per-object
+    static_configs:
+      - targets: ["rabbitmq:15692"]
+  - job_name: milvus
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["milvus:9091"]
+  - job_name: minio
+    metrics_path: /minio/v2/metrics/cluster
+    static_configs:
+      - targets: ["minio:9000"]
+  - job_name: llm-benchmark-results
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["llm-benchmark-exporter:9123"]
+  - job_name: vllm-pipeline-a-live
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["host.docker.internal:8101"]
+        labels:
+          pipeline: pipeline_a
+          variant: native
+  - job_name: vllm-pipeline-b-live
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["host.docker.internal:8201"]
+        labels: {pipeline: pipeline_b, variant: bf16}
+      - targets: ["host.docker.internal:8202"]
+        labels: {pipeline: pipeline_b, variant: fp16}
+      - targets: ["host.docker.internal:8203"]
+        labels: {pipeline: pipeline_b, variant: int8_mlx}
+      - targets: ["host.docker.internal:8204"]
+        labels: {pipeline: pipeline_b, variant: int4_mlx}

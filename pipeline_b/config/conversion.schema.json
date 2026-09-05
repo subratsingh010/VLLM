@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["variant", "run_id", "source", "output", "conversion"],
+  "properties": {
+    "variant": {"enum": ["bf16", "fp16", "int8_mlx", "int4_mlx"]},
+    "run_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"},
+    "source": {"type": "string"},
+    "output": {"type": "string"},
+    "conversion": {"enum": ["none", "runtime_dtype", "mlx_lm"]},
+    "bits": {"enum": [4, 8]},
+    "group_size": {"type": "integer", "minimum": 32}
+  },
+  "additionalProperties": false
+}

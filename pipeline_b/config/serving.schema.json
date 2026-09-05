@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["variant", "model_path", "dtype", "port", "max_model_len", "max_num_seqs"],
+  "properties": {
+    "variant": {"enum": ["bf16", "fp16", "int8_mlx", "int4_mlx"]},
+    "model_path": {"type": "string"},
+    "dtype": {"enum": ["bfloat16", "float16", "auto"]},
+    "port": {"type": "integer", "minimum": 1024, "maximum": 65535},
+    "max_model_len": {"const": 4096},
+    "max_num_seqs": {"const": 4},
+    "prefix_caching": {"const": false}
+  }
+}

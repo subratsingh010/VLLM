@@ -1,0 +1,36 @@
+# Phase 1 integration contract. Phase 2 supplies the pinned gateway image.
+services:
+  llm-gateway-a:
+    image: ${LLM_GATEWAY_IMAGE:?Set a digest-pinned gateway image}
+    profiles: ["pipeline-a"]
+    environment:
+      LLM_GATEWAY_PIPELINE: pipeline_a
+      LLM_GATEWAY_UPSTREAM_BASE_URL: http://host.docker.internal:8101
+      LLM_GATEWAY_UPSTREAM_MODEL: Qwen/Qwen3-1.7B
+      LLM_GATEWAY_MAX_ACTIVE_REQUESTS: "4"
+      LLM_GATEWAY_MAX_QUEUED_REQUESTS: "8"
+    ports: ["8111:8000"]
+    networks: [observability]
+    labels:
+      project: llm-serving-lab
+      pipeline: pipeline_a
+
+  llm-gateway-b:
+    image: ${LLM_GATEWAY_IMAGE:?Set a digest-pinned gateway image}
+    profiles: ["pipeline-b"]
+    environment:
+      LLM_GATEWAY_PIPELINE: pipeline_b
+      LLM_GATEWAY_UPSTREAM_BASE_URL: http://host.docker.internal:8102
+      LLM_GATEWAY_UPSTREAM_MODEL: Qwen/Qwen3-1.7B-MLX-4bit
+      LLM_GATEWAY_MAX_ACTIVE_REQUESTS: "4"
+      LLM_GATEWAY_MAX_QUEUED_REQUESTS: "8"
+    ports: ["8112:8000"]
+    networks: [observability]
+    labels:
+      project: llm-serving-lab
+      pipeline: pipeline_b
+
+networks:
+  observability:
+    external: true
+    name: workflow_default

@@ -1,0 +1,37 @@
+{
+  "title": "LLM Serving Lab — Operational View",
+  "uid": "llm-serving-lab",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "5s",
+  "tags": ["llm", "learning-lab"],
+  "panels": [
+    {
+      "id": 1, "type": "timeseries", "title": "Gateway active requests",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"refId": "A", "expr": "llm_gateway_active_requests", "legendFormat": "{{pipeline}}"}],
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}
+    },
+    {
+      "id": 2, "type": "timeseries", "title": "Gateway queue wait P95 (operational only)",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"refId": "A", "expr": "histogram_quantile(0.95, sum by (le, pipeline) (rate(llm_gateway_queue_wait_seconds_bucket[5m])))", "legendFormat": "{{pipeline}}"}],
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0}
+    },
+    {
+      "id": 3, "type": "timeseries", "title": "vLLM running and waiting requests",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {"refId": "A", "expr": "vllm:num_requests_running", "legendFormat": "running {{pipeline}}"},
+        {"refId": "B", "expr": "vllm:num_requests_waiting", "legendFormat": "waiting {{pipeline}}"}
+      ],
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8}
+    },
+    {
+      "id": 4, "type": "logs", "title": "Gateway structured logs",
+      "datasource": {"type": "loki", "uid": "loki"},
+      "targets": [{"refId": "A", "expr": "{project=\"llm-serving-lab\"}"}],
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8}
+    }
+  ]
+}

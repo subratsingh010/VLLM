@@ -1,0 +1,8 @@
+{
+  "pipeline":"pipeline_a","base_model":"Qwen/Qwen3-1.7B","model_id":"Qwen/Qwen3-1.7B",
+  "model_revision":"70d244cc86ccca08cf5af4e1e306ecf908b1ad5e","tokenizer_id":"Qwen/Qwen3-1.7B",
+  "tokenizer_revision":"70d244cc86ccca08cf5af4e1e306ecf908b1ad5e","weight_format":"safetensors","precision":"bfloat16",
+  "quantization":null,"backend":"vllm-metal","backend_version":"0.28.0","host_port":8101,"gateway_port":8111,
+  "max_model_len":4096,"local_model_path":"models/pipeline_a","downloaded_bytes":4074938246,
+  "status":"DOWNLOADED_NOT_MEASURED"
+}

@@ -1,0 +1,53 @@
+{
+  "schema_version": "1.0",
+  "variants": {
+    "bf16": {
+      "category": "floating_point",
+      "precision": "bfloat16",
+      "quantized": false,
+      "conversion": "none",
+      "source": "models/pipeline_a",
+      "port": 8201,
+      "support": "confirmed_by_pipeline_a"
+    },
+    "fp16": {
+      "category": "floating_point",
+      "precision": "float16",
+      "quantized": false,
+      "conversion": "runtime_dtype",
+      "source": "models/pipeline_a",
+      "port": 8202,
+      "support": "requires_preflight_validation"
+    },
+    "int8_mlx": {
+      "category": "integer_weight_quantization",
+      "precision": "8bit",
+      "quantized": true,
+      "conversion": "mlx_lm",
+      "bits": 8,
+      "group_size": 64,
+      "source": "models/pipeline_a",
+      "port": 8203,
+      "support": "requires_conversion_and_load_validation"
+    },
+    "int4_mlx": {
+      "category": "integer_weight_quantization",
+      "precision": "4bit",
+      "quantized": true,
+      "conversion": "mlx_lm",
+      "bits": 4,
+      "group_size": 64,
+      "source": "models/pipeline_a",
+      "port": 8204,
+      "support": "artifact_format_known;local_conversion_requires_validation"
+    }
+  },
+  "excluded": {
+    "awq": "CUDA-oriented kernels are not established for this vLLM-Metal path",
+    "gptq": "not established for this vLLM-Metal path",
+    "bitsandbytes": "CUDA-oriented backend",
+    "fp8": "no supported M2 execution path established",
+    "gguf": "different serving backend; not a controlled vLLM-Metal comparison",
+    "other_mlx_bit_widths": "end-to-end vLLM-Metal compatibility not established"
+  }
+}

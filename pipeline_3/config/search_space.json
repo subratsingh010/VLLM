@@ -1,0 +1,13 @@
+{
+  "schema_version": "1.0",
+  "description": "Small Metal-safe first-stage search; six linked candidates.",
+  "max_candidates": 6,
+  "fixed": {
+    "vllm_metal_memory_fraction": 0.70,
+    "max_model_len": 4096,
+    "enable_prefix_caching": false,
+    "num_runs": 1
+  },
+  "max_num_seqs": [1, 2, 4],
+  "max_num_batched_tokens": [1024, 2048]
+}

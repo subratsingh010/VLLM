@@ -1,0 +1,29 @@
+# Merge these entries into the existing Prometheus scrape_configs in Phase 2.
+- job_name: llm-gateway-a
+  metrics_path: /metrics
+  static_configs:
+    - targets: ["llm-gateway-a:8000"]
+      labels:
+        pipeline: pipeline_a
+
+- job_name: llm-gateway-b
+  metrics_path: /metrics
+  static_configs:
+    - targets: ["llm-gateway-b:8000"]
+      labels:
+        pipeline: pipeline_b
+
+# vLLM-Metal runs on the macOS host, not inside Docker.
+- job_name: vllm-metal-a
+  metrics_path: /metrics
+  static_configs:
+    - targets: ["host.docker.internal:8101"]
+      labels:
+        pipeline: pipeline_a
+
+- job_name: vllm-metal-b
+  metrics_path: /metrics
+  static_configs:
+    - targets: ["host.docker.internal:8102"]
+      labels:
+        pipeline: pipeline_b

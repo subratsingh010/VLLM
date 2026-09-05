@@ -1,0 +1,178 @@
+LLM SERVING LAB - MANUAL COMMAND GUIDE
+======================================
+
+Project root:
+  cd /Users/subrat/Desktop/Vllm
+
+IMPORTANT
+---------
+- Run only one model server at a time on this 16 GB Mac.
+- Do not mix discarded Pipeline A results into reports.
+- Benchmark truth comes from official.json files, not Grafana.
+- Grafana is a visualization layer over Prometheus.
+- Pipeline A is already complete; rerun it only if you intentionally need a new baseline.
+
+PIPELINE A - BF16 NON-QUANTIZED BASELINE
+----------------------------------------
+Existing final report:
+  pipeline_a/REPORT.md
+
+Existing valid raw results:
+  pipeline_a/results/capacity-20260905-nocache/
+
+Existing analysis:
+  pipeline_a/analysis/capacity-20260905-nocache/
+
+If intentionally running a new Pipeline A experiment, start the model with prefix
+caching disabled, then invoke benchmark.official_runner with the shared matrix.
+Never overwrite capacity-20260905-nocache; choose a new output directory.
+
+1. Start the Pipeline A server:
+  pipeline_a/scripts/start_model.sh
+
+2. Run the official controlled benchmark in another terminal:
+  .venv/bin/python -m benchmark.official_runner \
+    --pipeline pipeline_a \
+    --base-url http://127.0.0.1:8101 \
+    --served-model Qwen/Qwen3-1.7B \
+    --model-path models/pipeline_a \
+    --output-dir pipeline_a/results/NEW_RUN \
+    --metrics-url http://127.0.0.1:8101/metrics \
+    --matrix-path benchmark/capacity_matrix.json
+
+3. Stop the Pipeline A server:
+  pipeline_a/scripts/stop_model.sh
+
+Offline analysis command for an existing run:
+  .venv/bin/python -m benchmark.capacity_analysis \
+    --run-dir pipeline_a/results/NEW_RUN \
+    --output-dir pipeline_a/analysis/NEW_RUN
+
+PIPELINE B - USER-CONTROLLED PRECISION VARIANTS
+------------------------------------------------
+Available variants:
+  bf16       floating point, no quantization; Pipeline A already covers it
+  fp16       floating point, no quantization
+  int8_mlx   MLX 8-bit integer weight quantization
+  int4_mlx   MLX 4-bit integer weight quantization
+
+Replace VARIANT and RUN_ID in every command. Example values:
+  VARIANT=int4_mlx
+  RUN_ID=int4-20260906
+
+1. Validate configuration only:
+  .venv/bin/python -m pipeline_b.scripts.validate_variant --variant VARIANT
+
+2. Prepare a new isolated run:
+  .venv/bin/python -m pipeline_b.scripts.prepare_variant \
+    --variant VARIANT --run-id RUN_ID
+
+3A. INT8/INT4 only - preview conversion without running it:
+  .venv/bin/python -m pipeline_b.scripts.quantize \
+    --variant VARIANT --run-id RUN_ID
+
+3B. INT8/INT4 only - manually execute conversion:
+  .venv/bin/python -m pipeline_b.scripts.quantize \
+    --variant VARIANT --run-id RUN_ID --execute --confirm RUN_ID
+
+FP16/BF16 skip step 3 because they are not integer quantization.
+
+4. Verify format, metadata, size, and hashes:
+  .venv/bin/python -m pipeline_b.scripts.verify_artifacts \
+    --variant VARIANT --run-id RUN_ID
+
+5. Start server in terminal 1:
+  pipeline_b/scripts/serve_variant.sh VARIANT RUN_ID
+
+6. Run official benchmark in terminal 2 after server reports ready:
+  pipeline_b/scripts/benchmark_variant.sh VARIANT RUN_ID
+
+7. Stop server with Ctrl+C after benchmark exits.
+   If needed, record a stopped server before retrying:
+  .venv/bin/python -m pipeline_b.scripts.mark_state \
+    --variant VARIANT --run-id RUN_ID --target serving_stopped
+
+8. Analyze saved results:
+  pipeline_b/scripts/analyze_variant.sh VARIANT RUN_ID
+
+9. Finalize structurally complete run:
+  .venv/bin/python -m pipeline_b.scripts.finalize_variant \
+    --variant VARIANT --run-id RUN_ID
+
+Pipeline B result location:
+  pipeline_b/results/VARIANT/RUN_ID/
+
+It contains RUN_STATUS.json, metadata, conversion records, server command,
+official benchmark JSON, resource samples, analysis, optional quality, and report.
+
+COMPARE PIPELINE B WITH PIPELINE A
+---------------------------------
+This command reads saved files only:
+  .venv/bin/python -m comparison.compare \
+    --baseline pipeline_a/results/capacity-20260905-nocache \
+    --variants-root pipeline_b/results \
+    --output-dir comparison/generated
+
+Comparison outputs:
+  comparison/generated/COMPARISON_REPORT.md
+  comparison/generated/manifest.json
+  comparison/generated/tables/
+  comparison/generated/charts/
+
+PIPELINE 3 - OFFICIAL VLLM AUTO-TUNING SWEEP
+---------------------------------------------
+Pipeline 3 requires a completed Pipeline B run.
+
+1. Prepare tuning plan only:
+  .venv/bin/python -m pipeline_3.scripts.prepare_tuning \
+    --variant-run pipeline_b/results/VARIANT/RUN_ID \
+    --tuning-run-id TUNING_RUN_ID
+
+2. Inspect all official commands without executing:
+  pipeline_3/scripts/run_sweep.sh \
+    pipeline_3/results/VARIANT/TUNING_RUN_ID --dry-run
+
+3. Manually start the long official vLLM sweep:
+  pipeline_3/scripts/run_sweep.sh \
+    pipeline_3/results/VARIANT/TUNING_RUN_ID --execute
+
+Resume an interrupted sweep:
+  pipeline_3/scripts/run_sweep.sh \
+    pipeline_3/results/VARIANT/TUNING_RUN_ID --execute --resume
+
+4. Rank saved official results offline:
+  .venv/bin/python -m pipeline_3.scripts.rank_results \
+    --tuning-run pipeline_3/results/VARIANT/TUNING_RUN_ID
+
+Pipeline 3 results:
+  pipeline_3/results/VARIANT/TUNING_RUN_ID/official_sweep/
+  pipeline_3/results/VARIANT/TUNING_RUN_ID/analysis/ranking.csv
+  pipeline_3/results/VARIANT/TUNING_RUN_ID/analysis/winner.json
+  pipeline_3/results/VARIANT/TUNING_RUN_ID/analysis/REPORT.md
+
+OBSERVABILITY
+-------------
+Existing stack directory:
+  /Users/subrat/Desktop/workflow
+
+Existing services reused:
+  Prometheus  http://localhost:9090
+  Grafana     http://localhost:3000
+  Loki        http://localhost:3100
+  Tempo       http://localhost:3200
+  Phoenix     http://localhost:6006
+
+The benchmark exporter reads saved official JSON and resource samples read-only.
+Prometheus scrapes it, and Grafana dashboard 'LLM Benchmark Results' displays
+latency percentiles, throughput, failures, memory, swap, and KV-cache usage.
+
+Start only observability plus benchmark exporter from workflow directory:
+  docker compose up -d prometheus grafana loki promtail tempo phoenix llm-benchmark-exporter
+
+Open Grafana:
+  http://localhost:3000
+
+Dashboard folder:
+  Employee Support / LLM Benchmark Results
+
+The exporter never launches a model or benchmark and never changes saved results.

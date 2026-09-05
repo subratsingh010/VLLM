@@ -1,0 +1,8 @@
+{
+  "medium-01": {"repeat_text": " Capacity planning requires measured demand, bounded queues, explicit timeouts, and reproducible evidence.", "repeat_count": 18},
+  "medium-02": {"repeat_text": " Capacity planning requires measured demand, bounded queues, explicit timeouts, and reproducible evidence.", "repeat_count": 19},
+  "medium-03": {"repeat_text": " Capacity planning requires measured demand, bounded queues, explicit timeouts, and reproducible evidence.", "repeat_count": 20},
+  "long-01": {"repeat_text": " Capacity planning requires measured demand, bounded queues, explicit timeouts, and reproducible evidence.", "repeat_count": 82},
+  "long-02": {"repeat_text": " Capacity planning requires measured demand, bounded queues, explicit timeouts, and reproducible evidence.", "repeat_count": 92},
+  "long-03": {"repeat_text": " Capacity planning requires measured demand, bounded queues, explicit timeouts, and reproducible evidence.", "repeat_count": 97}
+}

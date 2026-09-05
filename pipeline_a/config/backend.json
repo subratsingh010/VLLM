@@ -1,0 +1,7 @@
+{
+  "vllm":"0.28.0+cpu","vllm_metal":"0.28.0",
+  "vllm_metal_commit":"4a9d9b948b855ab4e8686cf85eebd466486d44d8",
+  "mlx":"0.32.0","mlx_lm":"0.31.3",
+  "mlx_lm_commit":"254d153fdeb6f150edd4fc5a54f9828638481fa8",
+  "transformers":"5.12.1","python":"3.12.9","architecture":"arm64"
+}

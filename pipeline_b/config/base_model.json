@@ -1,0 +1,14 @@
+{
+  "model_id": "Qwen/Qwen3-1.7B",
+  "revision": "70d244cc86ccca08cf5af4e1e306ecf908b1ad5e",
+  "local_source": "models/pipeline_a",
+  "backend": "vllm-metal",
+  "backend_version": "0.28.0",
+  "mlx_version": "0.32.0",
+  "mlx_lm_version": "0.31.3",
+  "max_model_len": 4096,
+  "max_num_seqs": 4,
+  "memory_fraction": 0.70,
+  "benchmark_matrix": "benchmark/capacity_matrix.json",
+  "prefix_caching": false
+}

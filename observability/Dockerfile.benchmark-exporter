@@ -1,0 +1,6 @@
+FROM python:3.12-slim
+WORKDIR /app
+COPY observability/benchmark_exporter.py /app/benchmark_exporter.py
+USER 65534:65534
+EXPOSE 9123
+CMD ["python", "/app/benchmark_exporter.py"]

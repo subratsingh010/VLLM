@@ -1,0 +1,11 @@
+{
+  "objective": "maximize",
+  "metric": "output_throughput",
+  "constraints": {
+    "p95_ttft_ms_max": 5000,
+    "p95_e2el_ms_max": 20000,
+    "failed_max": 0
+  },
+  "selection_policy": "Highest mean output throughput among candidates satisfying every constraint.",
+  "confirmation_policy": "Rerun the winner separately three times, then run the full Pipeline A matrix before claiming it is tuned."
+}

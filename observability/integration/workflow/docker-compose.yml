@@ -1,0 +1,266 @@
+services:
+  backend:
+    container_name: employee-support-backend
+    build:
+      context: ./backend
+    env_file: .env
+    environment:
+      ALLOW_DEV_TOKEN: "false"
+      KEYCLOAK_ISSUER: http://localhost:8080/realms/employee-support
+      KEYCLOAK_JWKS_URL: http://keycloak:8080/realms/employee-support/protocol/openid-connect/certs
+      GOVERNANCE_POLICY_PATH: /data/governance-tool-policies.json
+      RAG_RUNTIME_CONFIG_PATH: /data/rag-runtime.yaml
+      RAG_DOCUMENT_ROOT: /data/rag-documents
+      RAG_PROMPT_STORE_PATH: /data/rag-prompts.json
+      RAG_EVALUATION_HISTORY_PATH: /data/rag-evaluations.json
+      RAG_EVALUATION_DATASET_PATH: /data/rag-evaluation-datasets.json
+      RAG_OPTIMIZATION_HISTORY_PATH: /data/rag-optimizations.json
+    ports: ["8000:8000"]
+    volumes:
+      - ./data/runtime:/data
+      - model_cache:/app/.cache/fastembed
+    depends_on: [postgres, redis, rabbitmq, milvus, keycloak, tempo, phoenix]
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/ready', timeout=2)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  worker:
+    container_name: employee-support-worker
+    build:
+      context: ./backend
+    env_file: .env
+    environment:
+      RAG_RUNTIME_CONFIG_PATH: /data/rag-runtime.yaml
+      RAG_DOCUMENT_ROOT: /data/rag-documents
+      RAG_PROMPT_STORE_PATH: /data/rag-prompts.json
+      RAG_EVALUATION_HISTORY_PATH: /data/rag-evaluations.json
+      RAG_EVALUATION_DATASET_PATH: /data/rag-evaluation-datasets.json
+      RAG_OPTIMIZATION_HISTORY_PATH: /data/rag-optimizations.json
+    volumes:
+      - model_cache:/app/.cache/fastembed
+      - ./data/runtime:/data
+    depends_on: [backend, rabbitmq, redis, postgres, milvus]
+    command: celery -A app.workers.celery_app worker --loglevel=INFO --pool=threads --concurrency=2 --prefetch-multiplier=1 -Q ingestion,evaluation,maintenance
+    ports: ["9101:9101"]
+    healthcheck:
+      # A solo Celery worker cannot answer remote-control pings while executing a
+      # task. Its Prometheus endpoint runs independently and is a reliable
+      # liveness signal even during long ingestion/evaluation work.
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9101/metrics', timeout=3)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  ragas-worker:
+    container_name: employee-support-ragas-worker
+    build:
+      context: ./backend
+    env_file: .env
+    environment:
+      RAG_RUNTIME_CONFIG_PATH: /data/rag-runtime.yaml
+      RAG_DOCUMENT_ROOT: /data/rag-documents
+      RAG_PROMPT_STORE_PATH: /data/rag-prompts.json
+      RAG_EVALUATION_DATASET_PATH: /data/rag-evaluation-datasets.json
+      RAG_OPTIMIZATION_HISTORY_PATH: /data/rag-optimizations.json
+    volumes:
+      - model_cache:/app/.cache/fastembed
+      - ./data/runtime:/data
+    depends_on: [backend, rabbitmq, redis, postgres, milvus]
+    command: celery -A app.workers.celery_app worker --loglevel=INFO --pool=solo --concurrency=1 --prefetch-multiplier=1 -Q ragas --hostname=ragas@%h
+    healthcheck:
+      test: ["CMD", "python", "-c", "from celery import Celery; import os; c=Celery(broker=os.environ['RABBITMQ_URL']); assert c.connection().ensure_connection(max_retries=1)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  scheduler:
+    container_name: employee-support-scheduler
+    build:
+      context: ./backend
+    env_file: .env
+    environment:
+      RAG_RUNTIME_CONFIG_PATH: /data/rag-runtime.yaml
+      RAG_OPTIMIZATION_HISTORY_PATH: /data/rag-optimizations.json
+    volumes:
+      - ./data/runtime:/data
+    depends_on: [rabbitmq, redis]
+    command: celery -A app.workers.celery_app beat --loglevel=INFO --schedule=/tmp/celerybeat-schedule
+
+  frontend:
+    container_name: employee-support-frontend
+    build:
+      context: ./frontend
+    environment:
+      VITE_API_PROXY_TARGET: http://backend:8000
+      VITE_KEYCLOAK_URL: http://localhost:8080
+      VITE_KEYCLOAK_REALM: employee-support
+      VITE_KEYCLOAK_CLIENT_ID: employee-support-web
+    ports: ["5173:5173"]
+    depends_on: [backend]
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:5173"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  postgres:
+    container_name: employee-support-postgres
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+      POSTGRES_DB: employee_support
+    ports: ["5432:5432"]
+    volumes: [postgres_data:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app -d employee_support"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    container_name: employee-support-redis
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  rabbitmq:
+    container_name: employee-support-rabbitmq
+    image: rabbitmq:3-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: app
+      RABBITMQ_DEFAULT_PASS: app
+    ports: ["5672:5672", "15672:15672"]
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+
+  etcd:
+    container_name: employee-support-etcd
+    image: quay.io/coreos/etcd:v3.5.15
+    command: etcd -advertise-client-urls=http://127.0.0.1:2379 -listen-client-urls http://0.0.0.0:2379
+
+  minio:
+    container_name: employee-support-minio
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_PROMETHEUS_AUTH_TYPE: public
+    command: server /minio_data
+    volumes:
+      - minio_data:/minio_data
+
+  milvus:
+    container_name: employee-support-milvus
+    image: milvusdb/milvus:v2.5.14
+    command: ["milvus", "run", "standalone"]
+    environment:
+      ETCD_ENDPOINTS: etcd:2379
+      MINIO_ADDRESS: minio:9000
+    depends_on: [etcd, minio]
+    ports: ["19530:19530", "9091:9091"]
+
+  keycloak:
+    container_name: employee-support-keycloak
+    image: quay.io/keycloak/keycloak:25.0
+    command: start-dev --import-realm
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+    volumes:
+      - ./infra/keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json:ro
+    ports: ["8080:8080"]
+
+  prometheus:
+    container_name: employee-support-prometheus
+    image: prom/prometheus:v2.54.1
+    volumes:
+      - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./infra/prometheus/rules:/etc/prometheus/rules:ro
+    ports: ["9090:9090"]
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9090/-/ready"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  llm-benchmark-exporter:
+    container_name: llm-benchmark-exporter
+    build:
+      context: /Users/subrat/Desktop/Vllm
+      dockerfile: observability/Dockerfile.benchmark-exporter
+    environment:
+      BENCHMARK_RESULTS_ROOT: /data
+      PORT: "9123"
+    volumes:
+      - /Users/subrat/Desktop/Vllm/pipeline_a/results:/data/pipeline_a:ro
+      - /Users/subrat/Desktop/Vllm/pipeline_b/results:/data/pipeline_b:ro
+    ports: ["9123:9123"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9123/health', timeout=2)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  grafana:
+    container_name: employee-support-grafana
+    image: grafana/grafana:11.2.0
+    ports: ["3000:3000"]
+    volumes:
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infra/grafana/provisioning/dashboards/employee-support.json:/var/lib/grafana/dashboards/employee-support.json:ro
+      - ./infra/grafana/provisioning/dashboards/llm-benchmark-results.json:/var/lib/grafana/dashboards/llm-benchmark-results.json:ro
+
+  loki:
+    container_name: employee-support-loki
+    image: grafana/loki:3.1.1
+    command: -config.file=/etc/loki/local-config.yaml
+    ports: ["3100:3100"]
+
+  promtail:
+    container_name: employee-support-promtail
+    image: grafana/promtail:3.1.1
+    command: -config.file=/etc/promtail/promtail.yml
+    volumes:
+      - ./infra/promtail/promtail.yml:/etc/promtail/promtail.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on: [loki]
+
+  tempo:
+    container_name: employee-support-tempo
+    image: grafana/tempo:2.6.0
+    command: ["-config.file=/etc/tempo.yml"]
+    volumes:
+      - ./infra/tempo/tempo.yml:/etc/tempo.yml:ro
+    ports: ["3200:3200", "4317:4317"]
+
+  phoenix:
+    container_name: employee-support-phoenix
+    image: arizephoenix/phoenix@sha256:22358dc39de9aa02d47afdd6ce659747f511bc887ebf927d74d695e34ec52c75
+    ports: ["6006:6006"]
+    environment:
+      PHOENIX_WORKING_DIR: /data
+    volumes:
+      - phoenix_data:/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:6006', timeout=2)"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres_data:
+  minio_data:
+  phoenix_data:
+  model_cache:

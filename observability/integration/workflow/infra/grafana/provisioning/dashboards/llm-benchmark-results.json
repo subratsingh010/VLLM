@@ -1,0 +1,87 @@
+{
+  "annotations": {"list": []},
+  "editable": true,
+  "id": null,
+  "panels": [
+    {
+      "id": 1,
+      "title": "TTFT P50 / P95 / P99",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"expr": "llm_benchmark_latency_milliseconds{metric=\"ttft\"}", "legendFormat": "{{run}} {{point}} P{{quantile}}"}],
+      "fieldConfig": {"defaults": {"unit": "ms"}, "overrides": []},
+      "gridPos": {"h": 9, "w": 12, "x": 0, "y": 0}
+    },
+    {
+      "id": 2,
+      "title": "End-to-end P50 / P95 / P99",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"expr": "llm_benchmark_latency_milliseconds{metric=\"e2el\"}", "legendFormat": "{{run}} {{point}} P{{quantile}}"}],
+      "fieldConfig": {"defaults": {"unit": "ms"}, "overrides": []},
+      "gridPos": {"h": 9, "w": 12, "x": 12, "y": 0}
+    },
+    {
+      "id": 3,
+      "title": "TPOT and ITL percentiles",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"expr": "llm_benchmark_latency_milliseconds{metric=~\"tpot|itl\"}", "legendFormat": "{{metric}} {{run}} {{point}} P{{quantile}}"}],
+      "fieldConfig": {"defaults": {"unit": "ms"}, "overrides": []},
+      "gridPos": {"h": 9, "w": 12, "x": 0, "y": 9}
+    },
+    {
+      "id": 4,
+      "title": "Request and token throughput",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"expr": "llm_benchmark_throughput", "legendFormat": "{{kind}} {{run}} {{point}}"}],
+      "gridPos": {"h": 9, "w": 12, "x": 12, "y": 9}
+    },
+    {
+      "id": 5,
+      "title": "Failed requests",
+      "type": "stat",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"expr": "sum by (run) (llm_benchmark_requests{outcome=\"failed\"})", "legendFormat": "{{run}}"}],
+      "fieldConfig": {"defaults": {"unit": "short", "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]}}, "overrides": []},
+      "gridPos": {"h": 7, "w": 6, "x": 0, "y": 18}
+    },
+    {
+      "id": 6,
+      "title": "Peak system memory",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"expr": "llm_benchmark_resource{kind=\"memory_percent\"}", "legendFormat": "{{run}} {{point}}"}],
+      "fieldConfig": {"defaults": {"unit": "percent", "min": 0, "max": 100}, "overrides": []},
+      "gridPos": {"h": 7, "w": 6, "x": 6, "y": 18}
+    },
+    {
+      "id": 7,
+      "title": "Peak swap",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"expr": "llm_benchmark_resource{kind=\"swap_bytes\"}", "legendFormat": "{{run}} {{point}}"}],
+      "fieldConfig": {"defaults": {"unit": "bytes"}, "overrides": []},
+      "gridPos": {"h": 7, "w": 6, "x": 12, "y": 18}
+    },
+    {
+      "id": 8,
+      "title": "Peak KV-cache usage",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"expr": "llm_benchmark_resource{kind=\"kv_cache_percent\"}", "legendFormat": "{{run}} {{point}}"}],
+      "fieldConfig": {"defaults": {"unit": "percent", "min": 0, "max": 100}, "overrides": []},
+      "gridPos": {"h": 7, "w": 6, "x": 18, "y": 18}
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["llm", "benchmark", "vllm"],
+  "templating": {"list": []},
+  "time": {"from": "now-30d", "to": "now"},
+  "timezone": "browser",
+  "title": "LLM Benchmark Results",
+  "uid": "llm-benchmark-results",
+  "version": 1
+}
