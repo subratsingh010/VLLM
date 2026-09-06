@@ -51,3 +51,27 @@ def test_resource_parser_skips_truncated_line(tmp_path: Path) -> None:
     resource_file.write_text('{"system_memory_percent": 42}\n{"truncated"', encoding="utf-8")
 
     assert benchmark_exporter.resource_maxima(tmp_path / "official.json")["memory_percent"] == 42
+
+
+def test_render_metrics_reads_pipeline_c_ranking(tmp_path: Path, monkeypatch) -> None:
+    analysis = tmp_path / "pipeline_3" / "int4_mlx" / "tune-1" / "analysis"
+    analysis.mkdir(parents=True)
+    (analysis / "ranking.csv").write_text(
+        "max_num_seqs,max_num_batched_tokens,runs,mean_p95_ttft_ms,"
+        "mean_p95_e2el_ms,failed,mean_output_throughput,eligible\n"
+        "2,1024,1,20,100,0,30,True\n",
+        encoding="utf-8",
+    )
+    (analysis / "winner.json").write_text(
+        json.dumps({"winner": {"max_num_seqs": 2, "max_num_batched_tokens": 1024}}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(benchmark_exporter, "DATA_ROOT", tmp_path)
+
+    rendered = benchmark_exporter.render_metrics().decode()
+
+    assert 'llm_autotune_candidate_latency_milliseconds{' in rendered
+    assert 'source="int4_mlx"' in rendered
+    assert 'max_num_seqs="2"' in rendered
+    assert 'llm_autotune_candidate_throughput{' in rendered
+    assert 'llm_autotune_winner_setting{' in rendered

@@ -73,6 +73,51 @@
       "targets": [{"expr": "llm_benchmark_resource{kind=\"kv_cache_percent\"}", "legendFormat": "{{run}} {{point}}"}],
       "fieldConfig": {"defaults": {"unit": "percent", "min": 0, "max": 100}, "overrides": []},
       "gridPos": {"h": 7, "w": 6, "x": 18, "y": 18}
+    },
+    {
+      "id": 9,
+      "title": "Pipeline C candidate P95 latency",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"expr": "llm_autotune_candidate_latency_milliseconds", "legendFormat": "{{source}} {{run}} seq={{max_num_seqs}} batch={{max_num_batched_tokens}} {{metric}}"}],
+      "fieldConfig": {"defaults": {"unit": "ms"}, "overrides": []},
+      "gridPos": {"h": 9, "w": 12, "x": 0, "y": 25}
+    },
+    {
+      "id": 10,
+      "title": "Pipeline C candidate output throughput",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"expr": "llm_autotune_candidate_throughput", "legendFormat": "{{source}} {{run}} seq={{max_num_seqs}} batch={{max_num_batched_tokens}}"}],
+      "fieldConfig": {"defaults": {"unit": "tps"}, "overrides": []},
+      "gridPos": {"h": 9, "w": 12, "x": 12, "y": 25}
+    },
+    {
+      "id": 11,
+      "title": "Pipeline C eligible candidates",
+      "type": "stat",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"expr": "sum by (source, run) (llm_autotune_candidate_status{outcome=\"eligible\"})", "legendFormat": "{{source}} {{run}}"}],
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 7, "w": 8, "x": 0, "y": 34}
+    },
+    {
+      "id": 12,
+      "title": "Pipeline C candidate failures",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"expr": "llm_autotune_candidate_status{outcome=\"failed_requests\"}", "legendFormat": "{{source}} {{run}} seq={{max_num_seqs}} batch={{max_num_batched_tokens}}"}],
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 7, "w": 8, "x": 8, "y": 34}
+    },
+    {
+      "id": 13,
+      "title": "Pipeline C selected settings",
+      "type": "stat",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [{"expr": "llm_autotune_winner_setting", "legendFormat": "{{source}} {{run}} {{setting}}"}],
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 7, "w": 8, "x": 16, "y": 34}
     }
   ],
   "refresh": "30s",
@@ -83,5 +128,5 @@
   "timezone": "browser",
   "title": "LLM Benchmark Results",
   "uid": "llm-benchmark-results",
-  "version": 1
+  "version": 2
 }

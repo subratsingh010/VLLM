@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from pipeline_3.scripts.prepare_tuning import build_candidates, validate_source
+from pipeline_3.scripts.prepare_tuning import build_candidates, resolve_source, validate_source
 from pipeline_3.scripts.rank_results import rank
 
 
@@ -22,6 +22,15 @@ def test_source_must_be_complete(tmp_path: Path) -> None:
     (tmp_path / "metadata" / "artifact_inventory.json").write_text("{}")
     with pytest.raises(ValueError, match="must be complete"):
         validate_source(tmp_path)
+
+
+def test_local_model_directory_is_supported(tmp_path: Path) -> None:
+    for name in ("config.json", "tokenizer.json", "tokenizer_config.json", "model.safetensors"):
+        (tmp_path / name).write_text("{}")
+    source = resolve_source(tmp_path, "bfloat16", "test-model")
+    assert source.kind == "local_model_directory"
+    assert source.dtype == "bfloat16"
+    assert source.served_model == "test-model"
 
 
 def test_rank_uses_saved_official_metrics_and_constraints(tmp_path: Path) -> None:

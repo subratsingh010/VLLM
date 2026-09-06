@@ -37,6 +37,14 @@ class CompletedRun:
     status: dict[str, Any]
 
 
+@dataclass(frozen=True)
+class CompletedTuningRun:
+    source_label: str
+    run_id: str
+    path: Path
+    plan: dict[str, Any]
+
+
 def json_sha256(path: Path) -> str:
     value = json.loads(path.read_text(encoding="utf-8"))
     canonical = json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
@@ -67,6 +75,52 @@ def discover_completed(variants_root: Path) -> list[CompletedRun]:
             CompletedRun(str(status["variant"]), str(status["run_id"]), run, status)
         )
     return discovered
+
+
+def discover_completed_tuning(tuning_root: Path) -> list[CompletedTuningRun]:
+    discovered: list[CompletedTuningRun] = []
+    if not tuning_root.is_dir():
+        return discovered
+    for winner_path in sorted(tuning_root.glob("*/*/analysis/winner.json")):
+        run = winner_path.parent.parent
+        plan_path = run / "PLAN.json"
+        ranking_path = run / "analysis" / "ranking.csv"
+        report_path = run / "analysis" / "REPORT.md"
+        if not all(path.is_file() for path in (plan_path, ranking_path, report_path)):
+            continue
+        plan = json.loads(plan_path.read_text(encoding="utf-8"))
+        discovered.append(
+            CompletedTuningRun(run.parent.name, run.name, run, plan)
+        )
+    return discovered
+
+
+def tuning_rows(runs: list[CompletedTuningRun]) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for run in runs:
+        winner = json.loads(
+            (run.path / "analysis" / "winner.json").read_text(encoding="utf-8")
+        ).get("winner")
+        rows.append(
+            {
+                "source_run": f"{run.source_label}/{run.run_id}",
+                "source_kind": run.plan.get("source", {}).get("kind", "legacy_pipeline_b_run"),
+                "model_path": run.plan.get("model_path", ""),
+                "candidate_count": run.plan.get("candidate_count", ""),
+                "winner_found": winner is not None,
+                "max_num_seqs": "" if winner is None else winner.get("max_num_seqs", ""),
+                "max_num_batched_tokens": (
+                    "" if winner is None else winner.get("max_num_batched_tokens", "")
+                ),
+                "mean_p95_ttft_ms": "" if winner is None else winner.get("mean_p95_ttft_ms", ""),
+                "mean_p95_e2el_ms": "" if winner is None else winner.get("mean_p95_e2el_ms", ""),
+                "mean_output_throughput": (
+                    "" if winner is None else winner.get("mean_output_throughput", "")
+                ),
+                "failed": "" if winner is None else winner.get("failed", ""),
+            }
+        )
+    return rows
 
 
 def percentage_difference(baseline: float, candidate: float) -> float | None:
@@ -203,9 +257,12 @@ def plot_metric(rows: list[dict[str, Any]], metric: str, output: Path) -> None:
 
 def main(
     baseline: Annotated[Path, typer.Option(exists=True, file_okay=False)],
-    variants_root: Annotated[Path, typer.Option(exists=True, file_okay=False)],
-    output_dir: Annotated[Path, typer.Option()] = Path("comparison/generated"),
+    variants_root: Annotated[Path, typer.Option(file_okay=False)],
+    tuning_root: Annotated[Path, typer.Option(file_okay=False)] = Path("pipeline_3/results"),
+    output_dir: Annotated[Path, typer.Option()] = Path("comparison/results/comparison-run"),
 ) -> None:
+    if output_dir.exists():
+        raise FileExistsError(f"refusing to overwrite comparison output: {output_dir}")
     baseline_csv = baseline.parent.parent / "analysis" / baseline.name / "capacity.csv"
     baseline_matrix = baseline / "matrix.json"
     baseline_config = baseline.parents[1] / "config" / "model.json"
@@ -216,12 +273,11 @@ def main(
     matrix_hash = json_sha256(baseline_matrix)
     baseline_size = int(json.loads(baseline_config.read_text(encoding="utf-8"))["downloaded_bytes"])
     completed = discover_completed(variants_root)
-    if not completed:
-        raise ValueError("no complete Pipeline B variant runs discovered")
     point_rows: list[dict[str, Any]] = []
     model_rows: list[dict[str, Any]] = []
     saturation_rows: list[dict[str, Any]] = []
     objective_rows: list[dict[str, Any]] = []
+    completed_tuning = discover_completed_tuning(tuning_root)
     baseline_envelope = (
         baseline.parent.parent / "analysis" / baseline.name / "operating_envelope.json"
     )
@@ -239,12 +295,14 @@ def main(
     write_csv(output_dir / "tables" / "model_size_comparison.csv", model_rows)
     write_csv(output_dir / "tables" / "saturation_comparison.csv", saturation_rows)
     write_csv(output_dir / "tables" / "quality_comparison.csv", objective_rows)
+    write_csv(output_dir / "tables" / "tuning_runs.csv", tuning_rows(completed_tuning))
     for metric in POINT_METRICS:
         plot_metric(point_rows, metric, output_dir / "charts" / f"{metric}.png")
     manifest = {
         "baseline": str(baseline),
         "baseline_matrix_sha256": matrix_hash,
         "variants": [f"{run.variant}/{run.run_id}" for run in completed],
+        "tuning_runs": [f"{run.source_label}/{run.run_id}" for run in completed_tuning],
         "reads_saved_artifacts_only": True,
     }
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -258,10 +316,17 @@ def main(
         "",
         *[f"- `{run.variant}/{run.run_id}`" for run in completed],
         "",
+        "## Included Pipeline C tuning runs",
+        "",
+        *([f"- `{run.source_label}/{run.run_id}`" for run in completed_tuning]
+          or ["- No completed tuning runs were discovered."]),
+        "",
         "Detailed absolute and percentage differences are in `tables/point_comparison.csv`.",
         "Model-size differences are in `tables/model_size_comparison.csv`.",
         "Saturation knees are in `tables/saturation_comparison.csv`.",
         "Objective quality differences are emitted only when both sides provide them.",
+        "Pipeline C winners are listed separately in `tables/tuning_runs.csv` because ",
+        "the exploratory tuning workload is not interchangeable with the full baseline matrix.",
         "",
     ]
     (output_dir / "COMPARISON_REPORT.md").write_text(

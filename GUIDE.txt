@@ -76,6 +76,32 @@ Result directories for that example:
 Use a new batch ID for every attempt. Existing run and converted-model directories
 are never overwritten. This command is long-running and must be started manually.
 
+UNATTENDED RUN ON MAC
+---------------------
+About 78 GB of free disk space is comfortably sufficient for this experiment.
+Connect the Mac to power, leave Terminal open, and use caffeinate so macOS does not
+sleep while conversion and benchmarks run. Locking the screen is fine; closing
+Terminal, restarting, or shutting down the Mac is not.
+
+  set -o pipefail
+  caffeinate -dimsu pipeline_b/scripts/run_all_variants.sh \
+    --batch-id 20260906-unattended-1 \
+    --execute \
+    --confirm 20260906-unattended-1 \
+    2>&1 | tee pipeline_b/logs/pipeline-b-20260906-unattended-1.log
+
+Unattended progress log:
+  pipeline_b/logs/pipeline-b-20260906-unattended-1.log
+
+Unattended result directories:
+  pipeline_b/results/fp16/fp16-20260906-unattended-1/
+  pipeline_b/results/int8_mlx/int8_mlx-20260906-unattended-1/
+  pipeline_b/results/int4_mlx/int4_mlx-20260906-unattended-1/
+
+The sequence stops on the first conversion, compatibility, server, or benchmark
+failure. Inspect that variant's result directory and the progress log before
+starting a new run with a fresh batch ID.
+
 Replace VARIANT and RUN_ID in every command. Example values:
   VARIANT=int4_mlx
   RUN_ID=int4-20260906
@@ -131,21 +157,33 @@ This command reads saved files only:
   .venv/bin/python -m comparison.compare \
     --baseline pipeline_a/results/capacity-20260905-nocache \
     --variants-root pipeline_b/results \
-    --output-dir comparison/generated
+    --tuning-root pipeline_3/results \
+    --output-dir comparison/results/COMPARE_ID
 
 Comparison outputs:
-  comparison/generated/COMPARISON_REPORT.md
-  comparison/generated/manifest.json
-  comparison/generated/tables/
-  comparison/generated/charts/
+  comparison/results/COMPARE_ID/COMPARISON_REPORT.md
+  comparison/results/COMPARE_ID/manifest.json
+  comparison/results/COMPARE_ID/tables/
+  comparison/results/COMPARE_ID/charts/
+
+Use a new COMPARE_ID every time. The comparison refuses to overwrite an existing
+directory. It discovers every completed Pipeline B run and every analyzed Pipeline
+C tuning run. Pipeline C tuning summaries are kept separate from full-matrix
+Pipeline A/B comparisons because their workloads are not directly interchangeable.
 
 PIPELINE 3 - OFFICIAL VLLM AUTO-TUNING SWEEP
 ---------------------------------------------
-Pipeline 3 requires a completed Pipeline B run.
+Pipeline 3 accepts Pipeline A, a completed Pipeline B run, or another already
+downloaded local model directory that is genuinely compatible with vLLM-Metal.
 
-1. Prepare tuning plan only:
+1A. Prepare from Pipeline A (plan only):
   .venv/bin/python -m pipeline_3.scripts.prepare_tuning \
-    --variant-run pipeline_b/results/VARIANT/RUN_ID \
+    --source models/pipeline_a --dtype bfloat16 \
+    --tuning-run-id TUNING_RUN_ID
+
+1B. Or prepare from a completed Pipeline B variant:
+  .venv/bin/python -m pipeline_3.scripts.prepare_tuning \
+    --source pipeline_b/results/VARIANT/RUN_ID \
     --tuning-run-id TUNING_RUN_ID
 
 2. Inspect all official commands without executing:
@@ -185,6 +223,10 @@ Existing services reused:
 The benchmark exporter reads saved official JSON and resource samples read-only.
 Prometheus scrapes it, and Grafana dashboard 'LLM Benchmark Results' displays
 latency percentiles, throughput, failures, memory, swap, and KV-cache usage.
+It also discovers analyzed Pipeline C runs and displays each tuning candidate's
+settings, P95 TTFT/E2E, output throughput, failures, eligibility, and selected
+winner. Pipeline C panels remain separate because its exploratory workload is not
+the same as the full Pipeline A/B capacity matrix.
 
 Start only observability plus benchmark exporter from workflow directory:
   docker compose up -d prometheus grafana loki promtail tempo phoenix llm-benchmark-exporter

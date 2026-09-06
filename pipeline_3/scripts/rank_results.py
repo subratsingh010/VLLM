@@ -57,7 +57,7 @@ def rank(tuning_run: Path) -> list[dict[str, Any]]:
 
 def write_outputs(tuning_run: Path, rows: list[dict[str, Any]]) -> None:
     output = tuning_run / "analysis"
-    output.mkdir(exist_ok=True)
+    output.mkdir(exist_ok=False)
     with (output / "ranking.csv").open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=list(rows[0]))
         writer.writeheader()

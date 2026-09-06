@@ -22,7 +22,9 @@ Native Metal kernel selection remains the responsibility of vLLM-Metal.
 
 ## Safety and scientific boundaries
 
-- A complete, artifact-verified Pipeline B variant run is required as input.
+- Input may be Pipeline A's model directory, a complete artifact-verified Pipeline B
+  run, or another local vLLM-compatible model directory. Directory checks do not
+  guarantee backend compatibility; the official sweep will stop if serving fails.
 - Preparing a tuning run writes files only.
 - The sweep requires explicit `--execute`; `--dry-run` is available first.
 - Official vLLM owns server lifecycle, cache clearing, resume checkpoints, and
@@ -36,22 +38,35 @@ Native Metal kernel selection remains the responsibility of vLLM-Metal.
 ## Manual workflow
 
 ```bash
-# Requires a completed Pipeline B run.
+# Pipeline A base model:
 .venv/bin/python -m pipeline_3.scripts.prepare_tuning \
-  --variant-run pipeline_b/results/fp16/fp16-20260905 \
-  --tuning-run-id fp16-tune-20260905
+  --source models/pipeline_a \
+  --dtype bfloat16 \
+  --tuning-run-id pipeline-a-tune-20260906
+
+# Or use a completed Pipeline B variant (dtype is derived from its metadata):
+.venv/bin/python -m pipeline_3.scripts.prepare_tuning \
+  --source pipeline_b/results/int4_mlx/int4_mlx-20260906 \
+  --tuning-run-id int4-tune-20260906
+
+# Another local model can be supplied only when it is already downloaded and has
+# config, tokenizer, and safetensors artifacts. It must actually support vLLM-Metal.
+.venv/bin/python -m pipeline_3.scripts.prepare_tuning \
+  --source /absolute/path/to/model \
+  --dtype auto --served-model MODEL_NAME \
+  --tuning-run-id external-model-tune-20260906
 
 # Inspect official commands without running them.
 pipeline_3/scripts/run_sweep.sh \
-  pipeline_3/results/fp16/fp16-tune-20260905 --dry-run
+  pipeline_3/results/pipeline_a/pipeline-a-tune-20260906 --dry-run
 
 # Long-running, explicitly user-started official sweep.
 pipeline_3/scripts/run_sweep.sh \
-  pipeline_3/results/fp16/fp16-tune-20260905 --execute
+  pipeline_3/results/pipeline_a/pipeline-a-tune-20260906 --execute
 
 # Offline ranking from saved official JSON only.
 .venv/bin/python -m pipeline_3.scripts.rank_results \
-  --tuning-run pipeline_3/results/fp16/fp16-tune-20260905
+  --tuning-run pipeline_3/results/pipeline_a/pipeline-a-tune-20260906
 ```
 
 Use `--execute --resume` only for an interrupted existing official sweep.

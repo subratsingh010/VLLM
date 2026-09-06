@@ -7,6 +7,7 @@ import pytest
 from comparison.compare import (
     compare_point_rows,
     discover_completed,
+    discover_completed_tuning,
     percentage_difference,
 )
 
@@ -59,3 +60,14 @@ def test_rejects_different_workload_configuration() -> None:
 
 def test_zero_baseline_percentage_is_unavailable() -> None:
     assert percentage_difference(0, 2) is None
+
+
+def test_discovers_only_analyzed_tuning_runs(tmp_path: Path) -> None:
+    run = tmp_path / "int4_mlx" / "tune-1"
+    analysis = run / "analysis"
+    analysis.mkdir(parents=True)
+    (run / "PLAN.json").write_text(json.dumps({"candidate_count": 6}))
+    (analysis / "winner.json").write_text(json.dumps({"winner": None}))
+    (analysis / "ranking.csv").write_text("eligible\nFalse\n")
+    (analysis / "REPORT.md").write_text("# report\n")
+    assert [item.run_id for item in discover_completed_tuning(tmp_path)] == ["tune-1"]

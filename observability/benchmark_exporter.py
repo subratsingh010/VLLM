@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 import json
 import os
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -40,7 +41,9 @@ def resource_maxima(path: Path) -> dict[str, float]:
             resource = json.loads(line)
         except json.JSONDecodeError:
             continue
-        values["memory_percent"] = max(values["memory_percent"], float(resource.get("system_memory_percent", 0)))
+        values["memory_percent"] = max(
+            values["memory_percent"], float(resource.get("system_memory_percent", 0))
+        )
         values["swap_bytes"] = max(values["swap_bytes"], float(resource.get("swap_used_bytes", 0)))
         for metric in resource.get("vllm_metrics", []):
             if metric.get("name") == "vllm:kv_cache_usage_perc":
@@ -60,6 +63,15 @@ def render_metrics() -> bytes:
         "# TYPE llm_benchmark_requests gauge",
         "# HELP llm_benchmark_resource Saved peak host or KV resource observation.",
         "# TYPE llm_benchmark_resource gauge",
+        "# HELP llm_autotune_candidate_latency_milliseconds "
+        "Saved Pipeline C candidate P95 latency.",
+        "# TYPE llm_autotune_candidate_latency_milliseconds gauge",
+        "# HELP llm_autotune_candidate_throughput Saved Pipeline C candidate output throughput.",
+        "# TYPE llm_autotune_candidate_throughput gauge",
+        "# HELP llm_autotune_candidate_status Saved Pipeline C candidate outcome.",
+        "# TYPE llm_autotune_candidate_status gauge",
+        "# HELP llm_autotune_winner_setting Selected Pipeline C serving setting.",
+        "# TYPE llm_autotune_winner_setting gauge",
     ]
     for path in sorted(DATA_ROOT.glob("**/official.json")):
         try:
@@ -84,16 +96,84 @@ def render_metrics() -> bytes:
             ("total_token_throughput", "total_tokens_per_second"),
         ):
             if key in official:
-                lines.append(sample("llm_benchmark_throughput", {**labels, "kind": kind}, official[key]))
+                lines.append(
+                    sample("llm_benchmark_throughput", {**labels, "kind": kind}, official[key])
+                )
         for key in ("completed", "failed"):
-            lines.append(sample("llm_benchmark_requests", {**labels, "outcome": key}, official.get(key, 0)))
+            lines.append(
+                sample(
+                    "llm_benchmark_requests",
+                    {**labels, "outcome": key},
+                    official.get(key, 0),
+                )
+            )
         for kind, value in resource_maxima(path).items():
             lines.append(sample("llm_benchmark_resource", {**labels, "kind": kind}, value))
+    for ranking_path in sorted(DATA_ROOT.glob("pipeline_3/*/*/analysis/ranking.csv")):
+        run_path = ranking_path.parent.parent
+        source_label = run_path.parent.name
+        run_id = run_path.name
+        base_labels = {"source": source_label, "run": run_id}
+        with ranking_path.open(newline="", encoding="utf-8") as handle:
+            rows = list(csv.DictReader(handle))
+        for row in rows:
+            labels = {
+                **base_labels,
+                "max_num_seqs": row["max_num_seqs"],
+                "max_num_batched_tokens": row["max_num_batched_tokens"],
+            }
+            lines.append(
+                sample(
+                    "llm_autotune_candidate_latency_milliseconds",
+                    {**labels, "metric": "ttft", "quantile": "0.95"},
+                    row["mean_p95_ttft_ms"],
+                )
+            )
+            lines.append(
+                sample(
+                    "llm_autotune_candidate_latency_milliseconds",
+                    {**labels, "metric": "e2el", "quantile": "0.95"},
+                    row["mean_p95_e2el_ms"],
+                )
+            )
+            lines.append(
+                sample(
+                    "llm_autotune_candidate_throughput",
+                    labels,
+                    row["mean_output_throughput"],
+                )
+            )
+            lines.append(
+                sample(
+                    "llm_autotune_candidate_status",
+                    {**labels, "outcome": "eligible"},
+                    1 if row["eligible"].lower() == "true" else 0,
+                )
+            )
+            lines.append(
+                sample(
+                    "llm_autotune_candidate_status",
+                    {**labels, "outcome": "failed_requests"},
+                    row["failed"],
+                )
+            )
+        winner_path = run_path / "analysis" / "winner.json"
+        if winner_path.is_file():
+            winner = json.loads(winner_path.read_text(encoding="utf-8")).get("winner")
+            if winner is not None:
+                for setting in ("max_num_seqs", "max_num_batched_tokens"):
+                    lines.append(
+                        sample(
+                            "llm_autotune_winner_setting",
+                            {**base_labels, "setting": setting},
+                            winner[setting],
+                        )
+                    )
     return ("\n".join(lines) + "\n").encode()
 
 
 class Handler(BaseHTTPRequestHandler):
-    def do_GET(self) -> None:  # noqa: N802
+    def do_GET(self) -> None:
         if self.path == "/health":
             body, status, content_type = b"ok\n", 200, "text/plain"
         elif self.path == "/metrics":

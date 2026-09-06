@@ -205,6 +205,7 @@ services:
     volumes:
       - /Users/subrat/Desktop/Vllm/pipeline_a/results:/data/pipeline_a:ro
       - /Users/subrat/Desktop/Vllm/pipeline_b/results:/data/pipeline_b:ro
+      - /Users/subrat/Desktop/Vllm/pipeline_3/results:/data/pipeline_3:ro
     ports: ["9123:9123"]
     restart: unless-stopped
     healthcheck:
