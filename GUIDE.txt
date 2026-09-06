@@ -4,6 +4,104 @@ LLM SERVING LAB - MANUAL COMMAND GUIDE
 Project root:
   cd /Users/subrat/Desktop/Vllm
 
+COMPLETE FRESH RUN - CORRECT ORDER
+==================================
+
+Use the same date/session label consistently. The example below uses 20260906-fresh.
+Every run ID must be new; scripts refuse to overwrite an existing result directory.
+
+STEP 1 - PIPELINE A: CREATE THE BF16 BASELINE
+----------------------------------------------
+Terminal 1 - start the original non-quantized Qwen model:
+  pipeline_a/scripts/start_model.sh
+
+Wait until the server is ready, then use Terminal 2:
+  .venv/bin/python -m benchmark.official_runner \
+    --pipeline pipeline_a \
+    --base-url http://127.0.0.1:8101 \
+    --served-model Qwen/Qwen3-1.7B \
+    --model-path models/pipeline_a \
+    --output-dir pipeline_a/results/20260906-fresh \
+    --metrics-url http://127.0.0.1:8101/metrics \
+    --matrix-path benchmark/capacity_matrix.json
+
+After the benchmark exits, stop the server:
+  pipeline_a/scripts/stop_model.sh
+
+Analyze the saved official results:
+  .venv/bin/python -m benchmark.capacity_analysis \
+    --run-dir pipeline_a/results/20260906-fresh \
+    --output-dir pipeline_a/analysis/20260906-fresh
+
+Pipeline A results:
+  pipeline_a/results/20260906-fresh/
+  pipeline_a/analysis/20260906-fresh/
+
+STEP 2 - PIPELINE B: RUN FP16, INT8, THEN INT4
+------------------------------------------------
+Keep the Mac on power and Terminal open. This single manually started command
+prevents sleep and runs one variant at a time:
+  set -o pipefail
+  caffeinate -dimsu pipeline_b/scripts/run_all_variants.sh \
+    --batch-id 20260906-fresh \
+    --execute \
+    --confirm 20260906-fresh \
+    2>&1 | tee pipeline_b/logs/pipeline-b-20260906-fresh.log
+
+Pipeline B results and saved converted models:
+  pipeline_b/results/fp16/fp16-20260906-fresh/
+  pipeline_b/results/int8_mlx/int8_mlx-20260906-fresh/
+  pipeline_b/results/int4_mlx/int4_mlx-20260906-fresh/
+  pipeline_b/converted_models/int8_mlx/int8_mlx-20260906-fresh/
+  pipeline_b/converted_models/int4_mlx/int4_mlx-20260906-fresh/
+
+STEP 3 - PIPELINE C: AUTO-TUNE ONE SELECTED MODEL
+--------------------------------------------------
+Choose exactly one source. Examples:
+  Base BF16: models/pipeline_a
+  FP16:      pipeline_b/results/fp16/fp16-20260906-fresh
+  INT8:      pipeline_b/results/int8_mlx/int8_mlx-20260906-fresh
+  INT4:      pipeline_b/results/int4_mlx/int4_mlx-20260906-fresh
+
+Prepare the auto-tune plan for INT4 (preparation does not run a model):
+  .venv/bin/python -m pipeline_3.scripts.prepare_tuning \
+    --source pipeline_b/results/int4_mlx/int4_mlx-20260906-fresh \
+    --tuning-run-id int4-tune-20260906-fresh
+
+Preview the official vLLM sweep without executing:
+  pipeline_3/scripts/run_sweep.sh \
+    pipeline_3/results/int4_mlx/int4-tune-20260906-fresh --dry-run
+
+Start the official auto-tune sweep manually:
+  caffeinate -dimsu pipeline_3/scripts/run_sweep.sh \
+    pipeline_3/results/int4_mlx/int4-tune-20260906-fresh --execute
+
+Rank the saved candidates after the sweep completes:
+  .venv/bin/python -m pipeline_3.scripts.rank_results \
+    --tuning-run pipeline_3/results/int4_mlx/int4-tune-20260906-fresh
+
+Pipeline C results:
+  pipeline_3/results/int4_mlx/int4-tune-20260906-fresh/official_sweep/
+  pipeline_3/results/int4_mlx/int4-tune-20260906-fresh/analysis/
+
+STEP 4 - FINAL COMPARISON (SAVED FILES ONLY)
+---------------------------------------------
+This command never starts, converts, or benchmarks a model:
+  .venv/bin/python -m comparison.compare \
+    --baseline pipeline_a/results/20260906-fresh \
+    --variants-root pipeline_b/results \
+    --tuning-root pipeline_3/results \
+    --output-dir comparison/results/comparison-20260906-fresh
+
+Final comparison:
+  comparison/results/comparison-20260906-fresh/COMPARISON_REPORT.md
+  comparison/results/comparison-20260906-fresh/tables/
+  comparison/results/comparison-20260906-fresh/charts/
+
+Grafana automatically discovers saved Pipeline A/B benchmark results and analyzed
+Pipeline C tuning results through the read-only exporter. Saved JSON/CSV remains
+the authoritative source for reports.
+
 IMPORTANT
 ---------
 - Run only one model server at a time on this 16 GB Mac.
