@@ -49,7 +49,7 @@ pipeline_b/scripts/analyze_variant.sh int4_mlx 20260905-int4-g64
   --variant int4_mlx --run-id 20260905-int4-g64
 
 .venv/bin/python -m comparison.compare \
-  --baseline pipeline_a/results/capacity-20260905-nocache \
+  --baseline pipeline_a/results/NEW_PIPELINE_A_RUN \
   --variants-root pipeline_b/results \
   --tuning-root pipeline_3/results \
   --output-dir comparison/results/COMPARE_ID

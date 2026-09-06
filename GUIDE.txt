@@ -14,14 +14,11 @@ IMPORTANT
 
 PIPELINE A - BF16 NON-QUANTIZED BASELINE
 ----------------------------------------
-Existing final report:
+Pipeline A report placeholder (currently unmeasured):
   pipeline_a/REPORT.md
 
-Existing valid raw results:
-  pipeline_a/results/capacity-20260905-nocache/
-
-Existing analysis:
-  pipeline_a/analysis/capacity-20260905-nocache/
+Previous Pipeline A results were intentionally cleared. Use a new unique run name
+for the fresh baseline; the examples below use NEW_RUN.
 
 If intentionally running a new Pipeline A experiment, start the model with prefix
 caching disabled, then invoke benchmark.official_runner with the shared matrix.
@@ -155,7 +152,7 @@ COMPARE PIPELINE B WITH PIPELINE A
 ---------------------------------
 This command reads saved files only:
   .venv/bin/python -m comparison.compare \
-    --baseline pipeline_a/results/capacity-20260905-nocache \
+    --baseline pipeline_a/results/NEW_RUN \
     --variants-root pipeline_b/results \
     --tuning-root pipeline_3/results \
     --output-dir comparison/results/COMPARE_ID
