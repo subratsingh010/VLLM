@@ -56,6 +56,26 @@ Available variants:
   int8_mlx   MLX 8-bit integer weight quantization
   int4_mlx   MLX 4-bit integer weight quantization
 
+ONE-COMMAND SEQUENTIAL OPTION
+-----------------------------
+This manually started command runs FP16, then INT8, then INT4. For each variant it
+performs conversion when required, verification, server start, official benchmark,
+server stop, analysis, and finalization. Variants never run concurrently. Any
+failure stops the sequence before the next variant.
+
+  pipeline_b/scripts/run_all_variants.sh \
+    --batch-id 20260906 \
+    --execute \
+    --confirm 20260906
+
+Result directories for that example:
+  pipeline_b/results/fp16/fp16-20260906/
+  pipeline_b/results/int8_mlx/int8_mlx-20260906/
+  pipeline_b/results/int4_mlx/int4_mlx-20260906/
+
+Use a new batch ID for every attempt. Existing run and converted-model directories
+are never overwritten. This command is long-running and must be started manually.
+
 Replace VARIANT and RUN_ID in every command. Example values:
   VARIANT=int4_mlx
   RUN_ID=int4-20260906

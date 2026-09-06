@@ -69,3 +69,19 @@ If a server exits before benchmarking, record that explicitly before retrying:
 required analysis files, and a verified model artifact. Failed requests remain
 valid saturation evidence and are preserved rather than blocking completion. The comparison ignores
 anything not explicitly marked `complete` and rejects matrix mismatches.
+
+## Optional one-command sequential workflow
+
+The batch wrapper remains user-controlled: it does nothing until invoked with
+`--execute` and an exact confirmation. It runs FP16, INT8, and INT4 one at a time,
+never concurrently. A failure stops the batch before the next variant.
+
+```sh
+pipeline_b/scripts/run_all_variants.sh \
+  --batch-id 20260906 \
+  --execute \
+  --confirm 20260906
+```
+
+Each variant receives an isolated directory at
+`pipeline_b/results/<variant>/<variant>-<batch-id>/`.
